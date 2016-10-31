@@ -24,18 +24,25 @@ namespace Juego
     public class Juego : MonoBehaviour
     {
         public Sprite[] spritesJuego; // sprites usados en el juego
-        enum IndexSprite { VACIO = 0, RUBI = 1, PERLA = 2, BORDE_SALTO = 3, BORDE_CLONACION = 4 }; // posiciones de los sprites 
+        enum IndexSprite { VACIO = 0, RUBI = 1, PERLA = 2, BORDE_SALTO = 3, BORDE_CLONACION = 4 }; // posiciones de los sprites                                                                                                
+        enum TipoJugador { HUMANO, PC, INTERNET }; // determina el tipo de un Jugador
         Casilla[][] casillas; // casillas del tablero 
         List<Point> adyacentes; // Casillas adyacentes a una Casilla
         List<Point> coAdyacentes; // Casillas co-adyacentes a una Casilla
         List<Point> auxiliarList; // lista para operaciones auxiliares 
+        TipoJugador J1; // jugador numero uno(Empieza Jugando, siempre con los Rubis)
+        TipoJugador J2; //Jugador numero dos( Juego con las perlas)
+
+
+
+
         Thread t;
 
         // se llama antes de la primera actualizacion grafica
         void Start()
         {
 
-            t = null;
+            t = null;////////////////////////////////////////
 
 
             adyacentes = new List<Point>();
@@ -73,14 +80,16 @@ namespace Juego
                         tipoF = TipoFicha.VACIO;
 
 
-                    // si la casilla es un vacio no la instancio, si no, la instancio
+                    // si la casilla es un vacio(HUECO), si no, es una posicion valida
                     if ((i == 3 && j == 4) || (i == 4 && j == 3) || (i == 5 && j == 4))
-                        casillas[i][j] = null;
+                    {
+                        casillas[i][j] = new Casilla( -1, TipoFicha.INVALIDA );
+                    }
                     else
                     {
                         casillas[i][j] = new Casilla(posicion, tipoF);
                         posicion++; // aumento la posicion para la siguiente Casilla
-                    }
+                    } // fin del if...else
                 } // fin del for
             } // fin del for
 
@@ -107,7 +116,21 @@ namespace Juego
             {
                 if( !t.IsAlive )
                 {
+                    foreach (var item in adyacentes)
+                    {
+                        GameObject.Find("Borde" + casillas[item.x][item.y].Posicion).GetComponent<Image>().sprite =
+                            spritesJuego[(int)IndexSprite.BORDE_CLONACION];
+                        Debug.Log(casillas[item.x][item.y].Posicion);
+                    }
 
+                    foreach (var item in coAdyacentes)
+                    {
+                        GameObject.Find("Borde" + casillas[item.x][item.y].Posicion).GetComponent<Image>().sprite =
+                            spritesJuego[(int)IndexSprite.BORDE_SALTO];
+                        Debug.Log(casillas[item.x][item.y].Posicion);
+                    }
+
+                    t = null;
                 }
             }
         }
@@ -116,38 +139,25 @@ namespace Juego
         // se llama cuando se hace clic en una casilla
         public void Casilla_Click(int pos)
         {
-            Thread t = new Thread(o =>
+            foreach (var item in adyacentes)
             {
+                GameObject.Find("Borde" + casillas[item.x][item.y].Posicion).GetComponent<Image>().sprite =
+                    spritesJuego[(int)IndexSprite.VACIO];
+            }
 
-                foreach (var item in adyacentes)
-                {
-                    GameObject.Find("Borde" + casillas[item.x][item.y].Posicion).GetComponent<Image>().sprite =
-                        spritesJuego[(int)IndexSprite.VACIO];
-                }
-
-                foreach (var item in coAdyacentes)
-                {
-                    GameObject.Find("Borde" + casillas[item.x][item.y].Posicion).GetComponent<Image>().sprite =
-                        spritesJuego[(int)IndexSprite.VACIO];
-                }
+            foreach (var item in coAdyacentes)
+            {
+                GameObject.Find("Borde" + casillas[item.x][item.y].Posicion).GetComponent<Image>().sprite =
+                    spritesJuego[(int)IndexSprite.VACIO];
+            }
 
 
-
+            t = new Thread(o =>
+            {
                 Point mypoint;
-                Debug.Log("Click" + pos);
                 mypoint = CoordenadasPorPosicion(pos);
-                Debug.Log(mypoint.x + "," + mypoint.y);
-
-
                 this.adyacentes.Clear();
                 BuscarAdyacentes(mypoint, adyacentes, null);
-                Debug.Log("Adyacentes: ");
-                foreach (var item in adyacentes)
-                {
-                    GameObject.Find("Borde" + casillas[item.x][item.y].Posicion).GetComponent<Image>().sprite =
-                        spritesJuego[(int)IndexSprite.BORDE_CLONACION];
-                    Debug.Log(casillas[item.x][item.y].Posicion);
-                }
 
 
                 this.coAdyacentes.Clear();
@@ -160,16 +170,28 @@ namespace Juego
 
                     BuscarAdyacentes(item, coAdyacentes, auxiliarList);
                 }
-
-
                 auxiliarList.Clear();
-                Debug.Log("Coadyacentes: ");
-                foreach (var item in coAdyacentes)
+
+
+
+                Point aux;
+                // desecho los huecos
+                for (int i = 0; i < adyacentes.Count; i++)
                 {
-                    GameObject.Find("Borde" + casillas[item.x][item.y].Posicion).GetComponent<Image>().sprite =
-                        spritesJuego[(int)IndexSprite.BORDE_SALTO];
-                    Debug.Log(casillas[item.x][item.y].Posicion);
+                    aux = adyacentes[i];
+
+                    if ((aux.x == 3 && aux.y == 4) || (aux.x == 4 && aux.y == 3) || (aux.x == 5 && aux.y == 4))
+                        adyacentes.RemoveAt(i);
                 }
+                // desecho los huecos
+                for (int i = 0; i < coAdyacentes.Count; i++)
+                {
+                    aux = coAdyacentes[i];
+
+                    if ((aux.x == 3 && aux.y == 4) || (aux.x == 4 && aux.y == 3) || (aux.x == 5 && aux.y == 4))
+                        coAdyacentes.RemoveAt(i);
+                }
+
             });
 
             t.Start();
@@ -179,12 +201,12 @@ namespace Juego
         } // fin de Casilla_Click
 
 
-        // obtiene las corrdenadas de una Casilla de acuerdo a una posicion dada
+        // obtiene las coordenadas de una Casilla de acuerdo a una posicion dada
         private Point CoordenadasPorPosicion(int pos)
         {
             for (int i = 0; i < casillas.Length; i++)
                 for (int j = 0; j < casillas[i].Length; j++)
-                    if (casillas[i][j] != null && casillas[i][j].Posicion == pos)
+                    if (casillas[i][j].Tipo != TipoFicha.INVALIDA  && casillas[i][j].Posicion == pos)
                         return new Point(i, j);
 
             return new Point(-1, -1); // no se encontro la posicion 
@@ -200,13 +222,14 @@ namespace Juego
             {
                 coordenadas.y -= 1; // busco adyacente arriba
                 // si la fila es mayor a cero y no existen excluidos o la coordenada adyacente no esta excluida
-                if (coordenadas.y >= 0 && (excluidos == null || (excluidos != null && excluidos.IndexOf(coordenadas) == -1))
-                    && casillas[coordenadas.x][coordenadas.y] != null)
+                if (coordenadas.y >= 0 && (excluidos == null || (excluidos != null && excluidos.IndexOf(coordenadas) == -1)))
+          //          && casillas[coordenadas.x][coordenadas.y].Tipo != TipoFicha.INVALIDA)
                     adyacentes.Add(coordenadas);
 
                 coordenadas.y += 2; // busco adyacente abajo
                 // si la fila es menor a la longitud maxima y no existen excluidos o la coordenada adyacente no esta excluida
-                if (coordenadas.y < casillas[coordenadas.x].Length && casillas[coordenadas.x][coordenadas.y] != null &&
+                if (coordenadas.y < casillas[coordenadas.x].Length && 
+      //              casillas[coordenadas.x][coordenadas.y].Tipo != TipoFicha.INVALIDA &&
                     (excluidos == null || (excluidos != null && excluidos.IndexOf(coordenadas) == -1)))
                     adyacentes.Add(coordenadas);
                 coordenadas.y -= 1; // reestabllezo las coordenadas iniciales
@@ -217,7 +240,8 @@ namespace Juego
                 {
                     coordenadas.x -= 1; // busco adyacentes por la izquierda
                     // si no existen excluidos o la coordenada adyacente no esta excluida
-                    if (coordenadas.y < casillas[coordenadas.x].Length && casillas[coordenadas.x][coordenadas.y] != null &&
+                    if (coordenadas.y < casillas[coordenadas.x].Length && 
+             //           casillas[coordenadas.x][coordenadas.y].Tipo != TipoFicha.INVALIDA &&
                         (excluidos == null || (excluidos != null && excluidos.IndexOf(coordenadas) == -1)))
                         adyacentes.Add(coordenadas);
 
@@ -226,7 +250,7 @@ namespace Juego
                     // si la fila es mayor a cero y menor al maximo tamaño
                     // y no existen excluidos o la coordenada adyacente no esta excluida
                     if (coordenadas.y >= 0 && coordenadas.y < casillas[coordenadas.x].Length &&
-                        casillas[coordenadas.x][coordenadas.y] != null &&
+          //              casillas[coordenadas.x][coordenadas.y].Tipo != TipoFicha.INVALIDA &&
                         (excluidos == null || (excluidos != null && excluidos.IndexOf(coordenadas) == -1)))
                         adyacentes.Add(coordenadas);
 
@@ -241,7 +265,8 @@ namespace Juego
                 {
                     coordenadas.x += 1; // busco adyacentes por la derecha
                     // si no existen excluidos o la coordenada adyacente no esta excluida
-                    if (coordenadas.y < casillas[coordenadas.x].Length && casillas[coordenadas.x][coordenadas.y] != null &&
+                    if (coordenadas.y < casillas[coordenadas.x].Length &&
+           //             casillas[coordenadas.x][coordenadas.y].Tipo != TipoFicha.INVALIDA &&
                         (excluidos == null || (excluidos != null && excluidos.IndexOf(coordenadas) == -1)))
                         adyacentes.Add(coordenadas);
 
@@ -250,7 +275,7 @@ namespace Juego
                     // si la fila es mayor a cero y menor al maximo tamaño
                     // y no existen excluidos o la coordenada adyacente no esta excluida
                     if (coordenadas.y >= 0 && coordenadas.y < casillas[coordenadas.x].Length &&
-                        casillas[coordenadas.x][coordenadas.y] != null &&
+         //               casillas[coordenadas.x][coordenadas.y].Tipo != TipoFicha.INVALIDA &&
                         (excluidos == null || (excluidos != null && excluidos.IndexOf(coordenadas) == -1)))
                         adyacentes.Add(coordenadas);
 
