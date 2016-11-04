@@ -1,14 +1,17 @@
 ﻿using UnityEngine;
 using System.Collections;
+using UnityEngine.UI;
 
 
+// espacio de nombres del Juego
 namespace Juego
 {
     // representa los datos iniciales del juego 
     public class DatosJuego : MonoBehaviour
     {
+        public Toggle humanoSel; // selector de la GUI
+        public Toggle pcSel; // selector de la GUI
         public bool PartidaLocal { get; set; } // determina si la partida es local o no(en linea)
-        public bool Servidor { get; set; } // determina si el Juego debe actuar como servidor o no(cliente)
         public bool HayHumano { get; set; } // determina si en Juego hay un humano 
         public bool HayPC { get; set; } // determina si en el Jueho esta la IA
 
@@ -17,7 +20,25 @@ namespace Juego
         void Awake()
         {
             DontDestroyOnLoad(this.gameObject);
-            this.Servidor = this.HayHumano = this.HayPC = this.PartidaLocal = false;
+            this.HayHumano = true; // Se juega como humano por defecto
+            this.HayPC = this.PartidaLocal = false;
         } // fin de Awake
+
+
+        // establece los tipos de jugadores
+        public void EstablecerJugadores()
+        {
+            this.HayHumano = humanoSel.isOn;
+            this.HayPC = pcSel.isOn;
+        } // fin de EstablecerJugadores
+
+
+        // imprime datos por proposito de depuracion
+        public void imprimir()
+        {
+            Debug.Log("Partida Local: " + this.PartidaLocal);
+            Debug.Log("Hay humano: " + this.HayHumano);
+            Debug.Log("Hay PC: " + this.HayPC);
+        } // fin de imprimir
     } // fin de DatosJuego
 } // fin del espacio de nombres Juego
