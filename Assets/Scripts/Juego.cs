@@ -49,6 +49,7 @@ namespace Juego
         Thread procesoClick; // hilo para procesar la entrada del usuario
         Thread procesoMovimiento; // hilo para procesar los movimientos de fichas en el Juego
         Thread procesoValidacionJuego; // hilo para procesar las validacioes del juego
+        Thread procesoDeIA; // hilo para procesar la jugada de la IA
         bool winRubis; // determina si ganaron las perlas
         bool winPerlas; // determina si ganaron los rubis
         bool empate; // determina si hay empate
@@ -57,6 +58,8 @@ namespace Juego
         bool juegoTerminado; // determina si ya se finalizo el juego
         public GameObject winRubisAviso; // ventana para indicar que ganaron los rubis en la GUI
         public GameObject winPerlasAviso; // ventana para indicar que ganaron las perlas en la GUI 
+        float tiempoJugada; // almacena el momento en que se finalizo una jugada
+
 
         // se llama antes de la primera actualizacion grafica
         void Start()
@@ -73,6 +76,7 @@ namespace Juego
             this.juegoTerminado = false; // el juego no se ha terminado(apenas va a empezar)
             this.empate = this.winRubis = this.winPerlas = false; // inicio indicadores
             this.rubisBloqueados = this.perlasBloqueadas = false; // inicio indicadores
+            this.procesoDeIA = null; // inicio hilo en null
             this.procesoValidacionJuego = null; // inicio el hilo en null
             this.procesoMovimiento = null; // inicio el hilo en null
             this.procesoClick = null; // inicio el hilo en null
@@ -218,7 +222,6 @@ namespace Juego
             {
                 this.turnoJ1 = !this.turnoJ1; // cambio de turno
                 this.ActualizarFichas(); // actualizo fichas
-                this.procesoMovimiento = null; // dejo al hilo sin referencia
 
 
                 // proceso para validar el Juego
@@ -229,6 +232,7 @@ namespace Juego
 
 
                 this.procesoValidacionJuego.Start(); // inicio proceso de validacion
+                this.procesoMovimiento = null; // dejo al hilo sin referencia
             } // fin del if
 
 
@@ -255,10 +259,40 @@ namespace Juego
                 {
                     Debug.Log("Empate");
                     this.juegoTerminado = true;
-                }
+                } // fin del if...else
 
 
+                
+                tiempoJugada = Time.time;//////////////
                 this.procesoValidacionJuego = null;
+            } // fin del if
+
+
+            // si se preoceso una jugada de la IA y el proceso termino
+            if(this.procesoDeIA != null && !this.procesoDeIA.IsAlive)
+            {
+                Debug.Log("Finalizo proceso de la IA");
+                this.procesoDeIA = null;
+            } // fin del if
+
+
+            // si el turno es de la PC y no se esta procesando aún un click, un movimiento o una validacion
+            // y no se ha terminado el juego y han pasado 5 segundos desde la ultima jugada
+            if (((this.turnoJ1 && this.J1 == TipoJugador.PC) || (!this.turnoJ1 && this.J2 == TipoJugador.PC)) &&
+                this.procesoClick == null && this.procesoMovimiento == null && procesoValidacionJuego == null && 
+                this.procesoDeIA == null && !this.juegoTerminado && Time.time - tiempoJugada > 1)
+            {
+                Debug.Log("Es el turno de la IA");
+                // proceso para realizar la jugada de la IA
+                this.procesoDeIA = new Thread(o =>
+               {
+                   Debug.Log("antes de llamar a JugadaIA");
+                   this.JugadaIA();
+               });
+
+                
+                Debug.Log("Inicio proceso de la IA");
+                this.procesoDeIA.Start(); // inicio el proceso de la IA
             } // fin del if
         } // fin de Update
 
@@ -429,9 +463,11 @@ namespace Juego
         // se llama cuando se hace clic en una casilla
         public void Casilla_Click(int pos)
         {
-            // si el turno es de un humano y no se esta procesando aún un click o un movimiento y no se ha terminado el juego
-            if( (this.turnoJ1 && this.J1 == TipoJugador.HUMANO) || (!this.turnoJ1 && this.J2 == TipoJugador.HUMANO) &&
-                this.procesoClick == null && this.procesoMovimiento == null && procesoValidacionJuego == null && !this.juegoTerminado)
+            // si el turno es de un humano y no se esta procesando aún un click o un movimiento
+            // o una validacion o una IA, y no se ha terminado el juego
+            if( ((this.turnoJ1 && this.J1 == TipoJugador.HUMANO) || (!this.turnoJ1 && this.J2 == TipoJugador.HUMANO)) &&
+                this.procesoClick == null && this.procesoMovimiento == null && procesoValidacionJuego == null &&
+                this.procesoDeIA == null && !this.juegoTerminado)
             {
                 // obtengo las coordenadas seleccionadas por el usuario
                 Point coorSelect = this.CoordenadasPorPosicion(pos);
@@ -703,6 +739,253 @@ namespace Juego
             else
                 perlas += cant;
         } // fin de AumentarFicha
+
+
+        // escoje la mejor jugada posible para la PC
+        private void JugadaIA()
+        {
+            Debug.Log("Inicio de JugadaIA");
+            TipoFicha FichaDeTurno = (this.turnoJ1 ? TipoFicha.RUBI : TipoFicha.PERLA); // ficha de turno
+            TipoFicha FichaSigTurno = (this.turnoJ1 ? TipoFicha.PERLA : TipoFicha.RUBI); // ficha del seiguiente turno
+            List<Point> adyacenetesFichaDeturno = new List<Point>(); // lista de adaycentes de la ficha de turno
+            List<Point> coAdyacentesFichaDeTurno = new List<Point>(); // lista de coAdyacentes de la ficha de turno
+            List<Point> adyacentesFichaSigTurno = new List<Point>(); // lista de adyacentes de la ficha del sig turno
+            List<Point> coAdyacentesFichaSigTurno = new List<Point>(); // lista de coAdycentes de la ficha del sig turno
+            List<Point> listaRobadasTurnoActual = new List<Point>(); // lista de fichas roobadas por la ficha del turno actual
+            List<Point> listaRobadasTurnoSig = new List<Point>(); // lista de fichas roobadas por la ficha del turno siguiente
+            Point posTurnoActual = new Point(); // posicion inicial de una ficha del turno actual
+            Point posTurnoSiguiente = new Point(); // posicion inicial de una ficha del turno siguiente 
+//            Point posF_TurnoActual = new Point(); // posicion final de una ficha del turno actual
+            int robadasTurnoActual; // fichas robadas por la ficha del turno actual
+            int robadasTurnoSig; // fichas robadas por la ficha del turno siguiente
+            int maxRobadasTurnoSig; // maxima cantidad de fichas robadas por la ficha del turno siguiente en una jugada
+            int mejorJugada = Int32.MinValue; // cantidad que representa la mejor jugada de la IA(las fichas robadas de la IA vs las del rival)
+            string tipo_DM = string.Empty; // tipo de movimiento seleccionado para realizar el moviento
+            int[] movimientos_DM = new int[2]; // posiciones seleccionadas para realizar el movimiento
+            int tipoLista = 0; // contador que determina el indice entre los tipos de lista para el turno actual
+            List<Point> listaTurnoActual = new List<Point>();
+            bool creadaNueva; // determina si con un movimiento se crea una nueva ficha  
+
+            // para todas las casillas del tablero 
+            for (int i = 0; i < this.casillas.Length; i++)
+            {
+                for (int j = 0; j < this.casillas[i].Length; j++)
+                {
+        //            Debug.Log( "inicio: " + i + "," + j );
+                    // si es una ficha del turno actual 
+                    if( this.casillas[i][j].Tipo == FichaDeTurno )
+                    {
+     ///                   Debug.Log("Ficha de turno encontrada");
+                        posTurnoActual.x = i; // guardo coordenada x de la posicion inicial
+                        posTurnoActual.y = j; // guardo coordenada y de la posicion inicial
+                        listaTurnoActual.Clear();
+                        adyacenetesFichaDeturno.Clear();
+                        coAdyacentesFichaSigTurno.Clear();
+
+                        // busco adyacentes y coAdyacentes de las casillas vacias en torno a la ficha actual
+                        this.buscarAdyacentesCoAdyacentes(posTurnoActual, adyacenetesFichaDeturno, coAdyacentesFichaDeTurno);
+
+
+       //                 Debug.Log("Tamaño lista ady: " + adyacenetesFichaDeturno.Count);
+     //                   Debug.Log("Tamaño lista coAdy: " + coAdyacentesFichaDeTurno.Count);
+
+                        // uno las dos lista en una sola para procesarlas juntas
+                        listaTurnoActual.AddRange(adyacenetesFichaDeturno);
+                        listaTurnoActual.AddRange(coAdyacentesFichaDeTurno);
+
+  //                      Debug.Log("Tamaño lista ady: " + adyacenetesFichaDeturno.Count);
+    //                    Debug.Log("Tamaño lista coAdy: " + coAdyacentesFichaDeTurno.Count);
+      //                  Debug.Log("Tamaño lista total: " + listaTurnoActual.Count);
+                        // para todas las adyacentes de la ficha actual
+                        foreach (var adyacenteFt in listaTurnoActual)
+                        {
+                            // simulo la jugada dependiendo del tipo de lista del turno actual y veo cuantos fichas robo
+                            if( tipoLista < adyacenetesFichaDeturno.Count)
+                                robadasTurnoActual = this.SimularJugada("clonar", posTurnoActual, adyacenteFt, FichaDeTurno, 
+                                    listaRobadasTurnoActual);
+                            else
+                                robadasTurnoActual = this.SimularJugada("saltar", posTurnoActual, adyacenteFt, FichaDeTurno,
+                                    listaRobadasTurnoActual);
+
+                            maxRobadasTurnoSig = Int32.MinValue; // inicio las maximas robadas del turno siguiente
+
+                            // para todas las casillas del tablero 
+                            for (int k = 0; k < this.casillas.Length; k++)
+                            {
+                                for (int l = 0; l < this.casillas[k].Length; l++)
+                                {
+                                    // si es una ficha del turno siguiente
+                                    if (this.casillas[k][l].Tipo == FichaSigTurno)
+                                    {
+                                        posTurnoSiguiente.x = k; // guardo coordenada x de la posicion inicial
+                                        posTurnoSiguiente.y = l; // guardo coordenada y de la posicion inicial
+                                        adyacentesFichaSigTurno.Clear();
+                                        coAdyacentesFichaSigTurno.Clear();
+
+                                        // busco adyacentes y coAdyacentes de las casillas vacias
+                                        // en torno a la ficha del siguiente turno
+                                        this.buscarAdyacentesCoAdyacentes(posTurnoSiguiente, adyacentesFichaSigTurno,
+                                            coAdyacentesFichaSigTurno);
+
+
+                                        // para todas las adyacentes del turno siguiente
+                                        foreach (var adyacenteFtSig in adyacentesFichaSigTurno)
+                                        {
+                                            // simulo la jugada del turno siguiente y veo cuantas roba
+                                            robadasTurnoSig = this.SimularJugada("clonar", posTurnoSiguiente,
+                                                adyacenteFtSig, FichaSigTurno, listaRobadasTurnoSig);
+
+                                            // si robo mas que la mayor cantidad robada en un turno lo modifico
+                                            if (robadasTurnoSig > maxRobadasTurnoSig)
+                                                maxRobadasTurnoSig = robadasTurnoSig;
+
+
+                                            // deshago la ultima jugada del urno siguiente restableciendo el tablero original
+                                            this.DeshacerJugada("clonar", posTurnoSiguiente,
+                                                adyacenteFtSig, FichaSigTurno, listaRobadasTurnoSig);
+                                        } // fin del foreach
+
+
+                                        // para todas las coAdyacentes del turno siguiente
+                                        foreach (var coAdyacentesFtSig in coAdyacentesFichaSigTurno)
+                                        {
+                                            // simulo la jugada del turno siguiente y veo cuantas roba
+                                            robadasTurnoSig = this.SimularJugada("saltar", posTurnoSiguiente,
+                                                coAdyacentesFtSig, FichaSigTurno, listaRobadasTurnoSig);
+
+                                            // si robo mas que la mayor cantidad robada en un turno lo modifico
+                                            if (robadasTurnoSig > maxRobadasTurnoSig)
+                                                maxRobadasTurnoSig = robadasTurnoSig;
+
+
+                                            // deshago la ultima jugada del urno siguiente restableciendo el tablero original
+                                            this.DeshacerJugada("saltar", posTurnoSiguiente,
+                                                coAdyacentesFtSig, FichaSigTurno, listaRobadasTurnoSig);
+                                        } // fin del foreach
+                                    } // fin del if para la ficha del turno siguiente
+                                } // fin del for
+                            } // fin del for 
+
+                            
+                            if (tipoLista < adyacenetesFichaDeturno.Count)
+                                this.DeshacerJugada("clonar", posTurnoActual, adyacenteFt, FichaDeTurno,
+                                    listaRobadasTurnoActual);
+                            else
+                                this.DeshacerJugada("saltar", posTurnoActual, adyacenteFt, FichaDeTurno,
+                                    listaRobadasTurnoActual);
+
+
+                            // si no robo con esta jugada y voy a saltar, entonces mejor no lo hago(mejor me clono)
+                            if( robadasTurnoActual == 0 && tipoLista >= adyacenetesFichaDeturno.Count)
+                            {
+                                tipoLista++;
+                                continue;
+                            }
+                            
+                            // si las robadas por la ficha de turno actual menos las maximas robadas por la ficha del turno
+                            // siguiente es mayor a la mejor jugada hasta ahora, entonces es la mejor jugada
+                            if ( robadasTurnoActual - maxRobadasTurnoSig > mejorJugada )
+                            {
+                                mejorJugada = robadasTurnoActual - maxRobadasTurnoSig;
+                                tipo_DM = (tipoLista < adyacenetesFichaDeturno.Count ? "clonar" : "saltar");
+                                movimientos_DM[0] = this.casillas[posTurnoActual.x][posTurnoActual.y].Posicion;
+                                movimientos_DM[1] = this.casillas[adyacenteFt.x][adyacenteFt.y].Posicion;
+                            } // fin del if
+
+                            
+                            tipoLista++; // aumento el indice de la lista
+                        } // fin del foreach para la lista de adyacentes y coAdyacentes del turno actual
+
+   //                     Debug.Log("Aqui");
+                    } // fin del if
+                    
+
+ //                   Debug.Log("Fin: " + i + "," + j);
+                } // fin del for
+            } // fin del for 
+
+            Debug.Log("Finalizada JugadaIA");
+            Debug.Log("Tipo: " + tipo_DM);
+            Debug.Log("Origen: " + movimientos_DM[0]);
+            Debug.Log("Final :" + movimientos_DM[1]);
+
+            this.RealizarMovimiento(tipo_DM, movimientos_DM); // realizo movimiento escojido por la IA
+        } // fin de JuagadaIA
+
+
+        // busca y guardas una lista de adyacentes y coAdyacentes del tipo de casilla especificada
+        // en las coordenadas especificadas
+        private void buscarAdyacentesCoAdyacentes( Point coord, List<Point> adyacentes, List<Point> coAdyacentes)
+        {
+            this.BuscarAdyacentes(coord, adyacentes, null); // busco adyacentes
+
+            // busco las coAdyacentes
+            foreach (var adyacente in adyacentes)
+            {
+                this.auxiliarList.Clear(); // limpio lista auxiliar
+                this.auxiliarList.AddRange(adyacentes); // agrego a la lista auxiliar las adyacentes
+                this.auxiliarList.Add(coord); // agrego a la lista auxiliar la ficha seleccionada
+                this.auxiliarList.AddRange(coAdyacentes); // agrego a la lista auxiliar las coAdyacentes
+
+                this.BuscarAdyacentes(adyacente, coAdyacentes, this.auxiliarList); // busco coAdyacentes
+            } // fin del foreach
+            this.auxiliarList.Clear(); // limpio lista auxiliar
+
+ //           Debug.Log("antes de filtrar");
+  //          Debug.Log("Adyacentes: " + adyacentes.Count);
+    //        Debug.Log("Coadyacentes : " + coAdyacentes.Count);
+            this.FiltrarAdyacentes(adyacentes, TipoFicha.VACIO);
+            this.FiltrarAdyacentes(coAdyacentes, TipoFicha.VACIO);
+
+      //      Debug.Log("despues de filtrar");
+        //    Debug.Log("Adyacentes: " + adyacentes.Count);
+        //    Debug.Log("Coadyacentes : " + coAdyacentes.Count);
+        } // fin de buscarAdyacentesCoAdyacentes
+
+        
+        // simula una jugada en el tablero y retorna la cantidad de fichas contrarias capturadas
+        // la jugada se simulada de acuerdo al tipo de movimiento, los puntos iniciales y finales
+        // y la ficha que esta de turno
+        private int SimularJugada(string tipo, Point Po, Point Pf, TipoFicha fichaTurno, List<Point> robadas)
+        {
+            // si el movimiento es de salto, elimino la ficha en la posicion inicial
+            if (tipo == "saltar")
+                this.casillas[Po.x][Po.y].Tipo = TipoFicha.VACIO;
+
+
+            //  en la casilla seleccionada a realizar el movimiento coloco la ficha de turno
+            this.casillas[Pf.x][Pf.y].Tipo = fichaTurno;
+            this.BuscarAdyacentes(Pf, robadas, null); // busco adyacentes a robar filtro fichas contrarias a robar
+            this.FiltrarAdyacentes(robadas, ( fichaTurno == TipoFicha.RUBI ? TipoFicha.PERLA : TipoFicha.RUBI)); 
+
+
+            // cambio las fichas robadas por la ficha de turno que las robo
+            foreach (var robada in robadas)
+                this.casillas[robada.x][robada.y].Tipo = (fichaTurno == TipoFicha.RUBI ? TipoFicha.RUBI : TipoFicha.PERLA);
+
+            return robadas.Count; // retorno cantidad de fichas contrarias robadas
+        } // fin de simularJugada
+
+
+        // deshace una jugada en el tablero de acuerdo al tipo de movimiento, los
+        // puntos iniciales y finales y la ficha que esta de turno
+        private void DeshacerJugada(string tipo, Point Po, Point Pf, TipoFicha fichaTurno, List<Point> robadas)
+        {
+            // si el movimiento es de salto, restablezco la ficha en la posicion inicial
+            if (tipo == "saltar")
+                this.casillas[Po.x][Po.y].Tipo = fichaTurno;
+
+
+            //  en la casilla seleccionada a realizar el movimiento la restablezco como vacia
+            this.casillas[Pf.x][Pf.y].Tipo = TipoFicha.VACIO;
+
+            // cambio las fichas robadas a su ficha original
+            foreach (var robada in robadas)
+                this.casillas[robada.x][robada.y].Tipo = (fichaTurno == TipoFicha.RUBI ? TipoFicha.PERLA : TipoFicha.RUBI);
+
+
+            robadas.Clear(); // limpio la lista de robadas 
+        } // fin de simularJugada
 
 
         public void EliminarCanalComunicaciones()
