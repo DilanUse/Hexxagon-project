@@ -12,6 +12,7 @@ public class Comunicaciones : MonoBehaviour
     // inicializa los atributos de las comunicaciones
     void Awake()
     {
+        
         DontDestroyOnLoad(this.gameObject);
         this.Servidor = false;
     } // fin de Awake
@@ -22,4 +23,11 @@ public class Comunicaciones : MonoBehaviour
     {
         this.Servidor = servidorSel.isOn;
     } // fin de establecerServidor 
+
+
+    // imprime los datos por propositos de depuracion
+    public void imprimir()
+    {
+        Debug.Log("Servidor: " + Servidor);
+    } // fin de imprimir
 } // fin de Comunicaciones

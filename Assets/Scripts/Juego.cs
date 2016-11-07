@@ -762,52 +762,66 @@ namespace Juego
             int mejorJugada = Int32.MinValue; // cantidad que representa la mejor jugada de la IA(las fichas robadas de la IA vs las del rival)
             string tipo_DM = string.Empty; // tipo de movimiento seleccionado para realizar el moviento
             int[] movimientos_DM = new int[2]; // posiciones seleccionadas para realizar el movimiento
-            int tipoLista = 0; // contador que determina el indice entre los tipos de lista para el turno actual
+            int tipoLista; // contador que determina el indice entre los tipos de lista para el turno actual
             List<Point> listaTurnoActual = new List<Point>();
-            bool creadaNueva; // determina si con un movimiento se crea una nueva ficha  
 
+
+ //           Debug.Log("Mejor jugada: " + mejorJugada);
             // para todas las casillas del tablero 
             for (int i = 0; i < this.casillas.Length; i++)
             {
                 for (int j = 0; j < this.casillas[i].Length; j++)
-                {
-        //            Debug.Log( "inicio: " + i + "," + j );
+                {            
                     // si es una ficha del turno actual 
                     if( this.casillas[i][j].Tipo == FichaDeTurno )
                     {
-     ///                   Debug.Log("Ficha de turno encontrada");
+                        ///                   Debug.Log("Ficha de turno encontrada");
+                        tipoLista = 0; // inicio en cero para cada nueva jugada
                         posTurnoActual.x = i; // guardo coordenada x de la posicion inicial
                         posTurnoActual.y = j; // guardo coordenada y de la posicion inicial
                         listaTurnoActual.Clear();
                         adyacenetesFichaDeturno.Clear();
-                        coAdyacentesFichaSigTurno.Clear();
+                        coAdyacentesFichaDeTurno.Clear();
+
+//                        Debug.Log("Jugadas para: " + "(" + i + ", " + j + ")");
+
+  /*                      if (adyacenetesFichaDeturno.Count == 0 && coAdyacentesFichaDeTurno.Count == 0 && listaTurnoActual.Count == 0)
+                            Debug.Log("Listas limpias"); */
 
                         // busco adyacentes y coAdyacentes de las casillas vacias en torno a la ficha actual
                         this.buscarAdyacentesCoAdyacentes(posTurnoActual, adyacenetesFichaDeturno, coAdyacentesFichaDeTurno);
 
 
-       //                 Debug.Log("Tamaño lista ady: " + adyacenetesFichaDeturno.Count);
-     //                   Debug.Log("Tamaño lista coAdy: " + coAdyacentesFichaDeTurno.Count);
-
                         // uno las dos lista en una sola para procesarlas juntas
                         listaTurnoActual.AddRange(adyacenetesFichaDeturno);
                         listaTurnoActual.AddRange(coAdyacentesFichaDeTurno);
 
-  //                      Debug.Log("Tamaño lista ady: " + adyacenetesFichaDeturno.Count);
-    //                    Debug.Log("Tamaño lista coAdy: " + coAdyacentesFichaDeTurno.Count);
-      //                  Debug.Log("Tamaño lista total: " + listaTurnoActual.Count);
+/*                        Debug.Log("Tamaño lista ady: " + adyacenetesFichaDeturno.Count);
+                        Debug.Log("Tamaño lista coAdy: " + coAdyacentesFichaDeTurno.Count);
+                        Debug.Log("Tamaño lista total: " + listaTurnoActual.Count); */
                         // para todas las adyacentes de la ficha actual
                         foreach (var adyacenteFt in listaTurnoActual)
                         {
+                 //           Debug.Log("tipo de lista: " + tipoLista);
                             // simulo la jugada dependiendo del tipo de lista del turno actual y veo cuantos fichas robo
-                            if( tipoLista < adyacenetesFichaDeturno.Count)
-                                robadasTurnoActual = this.SimularJugada("clonar", posTurnoActual, adyacenteFt, FichaDeTurno, 
+                            if (tipoLista < adyacenetesFichaDeturno.Count)
+                            {
+                                robadasTurnoActual = this.SimularJugada("clonar", posTurnoActual, adyacenteFt, FichaDeTurno,
                                     listaRobadasTurnoActual);
+          /*                      Debug.Log("Simulo: clonar, " + posTurnoActual + ", " + adyacenteFt + ", " +
+                                    (FichaDeTurno == TipoFicha.RUBI ? "rubi" : "perla"));
+                                Debug.Log("Robadas: " + robadasTurnoActual); */
+                            }
                             else
+                            {
                                 robadasTurnoActual = this.SimularJugada("saltar", posTurnoActual, adyacenteFt, FichaDeTurno,
                                     listaRobadasTurnoActual);
+                /*                Debug.Log("Simulo: saltar, " + posTurnoActual + ", " + adyacenteFt + ", " +
+                                    (FichaDeTurno == TipoFicha.RUBI ? "rubi" : "perla"));
+                                Debug.Log("Robadas: " + robadasTurnoActual); */
+                            }
 
-                            maxRobadasTurnoSig = Int32.MinValue; // inicio las maximas robadas del turno siguiente
+                            maxRobadasTurnoSig = 0; // inicio las maximas robadas del turno siguiente
 
                             // para todas las casillas del tablero 
                             for (int k = 0; k < this.casillas.Length; k++)
@@ -866,30 +880,53 @@ namespace Juego
                                 } // fin del for
                             } // fin del for 
 
-                            
+ //                           Debug.Log("Maximas robadas por el rival: " + maxRobadasTurnoSig);
+
                             if (tipoLista < adyacenetesFichaDeturno.Count)
+                            {
                                 this.DeshacerJugada("clonar", posTurnoActual, adyacenteFt, FichaDeTurno,
                                     listaRobadasTurnoActual);
+ //                               Debug.Log("deshago: clonar, " + posTurnoActual + ", " + adyacenteFt + ", " +
+   //                                 (FichaDeTurno == TipoFicha.RUBI ? "rubi" : "perla"));
+                            }
                             else
+                            {
                                 this.DeshacerJugada("saltar", posTurnoActual, adyacenteFt, FichaDeTurno,
                                     listaRobadasTurnoActual);
+  //                              Debug.Log("deshago: saltar, " + posTurnoActual + ", " + adyacenteFt + ", " +
+    //                                (FichaDeTurno == TipoFicha.RUBI ? "rubi" : "perla"));
+                            }
 
 
-                            // si no robo con esta jugada y voy a saltar, entonces mejor no lo hago(mejor me clono)
-                            if( robadasTurnoActual == 0 && tipoLista >= adyacenetesFichaDeturno.Count)
+                            // si no robo o solo robo una con esta jugada y voy a saltar, o si me van a robar las mismas 
+                            // o mas de las que yo robo al saltar, entonces mejor no lo hago(mejor me clono), pero
+                            // solo si puedo clonarme 
+                            if( ((robadasTurnoActual < 2 && tipoLista >= adyacenetesFichaDeturno.Count) ||
+                                (robadasTurnoActual - maxRobadasTurnoSig <= 0 && tipoLista >= adyacenetesFichaDeturno.Count)) 
+                                && adyacenetesFichaDeturno.Count > 0)
                             {
+ //                               Debug.Log("Movimiento descartado");
                                 tipoLista++;
                                 continue;
                             }
                             
                             // si las robadas por la ficha de turno actual menos las maximas robadas por la ficha del turno
-                            // siguiente es mayor a la mejor jugada hasta ahora, entonces es la mejor jugada
-                            if ( robadasTurnoActual - maxRobadasTurnoSig > mejorJugada )
+                            // siguiente es mayor a la mejor jugada hasta ahora y es un salto, entonces es la mejor jugada
+                            // o si las robadas por la ficha de turno actual menos las maximas robadas por la ficha del turno
+                            // siguiente es mayor o igual a la mejor jugada hasta ahora y es clonar, enotnces es la mejor jugada
+                            if ((robadasTurnoActual - maxRobadasTurnoSig > mejorJugada && tipoLista >= adyacenetesFichaDeturno.Count)
+                                || (robadasTurnoActual - maxRobadasTurnoSig >= mejorJugada && tipoLista < adyacenetesFichaDeturno.Count))
                             {
+                                
                                 mejorJugada = robadasTurnoActual - maxRobadasTurnoSig;
                                 tipo_DM = (tipoLista < adyacenetesFichaDeturno.Count ? "clonar" : "saltar");
                                 movimientos_DM[0] = this.casillas[posTurnoActual.x][posTurnoActual.y].Posicion;
                                 movimientos_DM[1] = this.casillas[adyacenteFt.x][adyacenteFt.y].Posicion;
+ /*                               Debug.Log("Es el nuevo movimiento Elejido");
+                                Debug.Log("Mejor jugada: " + mejorJugada);
+                                Debug.Log("Tipo: " + tipo_DM);
+                                Debug.Log("Origen: " + movimientos_DM[0]);
+                                Debug.Log("Final :" + movimientos_DM[1]); */
                             } // fin del if
 
                             
