@@ -73,6 +73,7 @@ namespace Juego
                 Destroy(GameObject.Find("Comunicaciones"));
 
 
+            this.tiempoJugada = 0; // inicio el tiempo de la jugada en cero 
             this.juegoTerminado = false; // el juego no se ha terminado(apenas va a empezar)
             this.empate = this.winRubis = this.winPerlas = false; // inicio indicadores
             this.rubisBloqueados = this.perlasBloqueadas = false; // inicio indicadores
@@ -182,6 +183,7 @@ namespace Juego
             Debug.Log("J2: " + this.J2);
             Debug.Log("turnoJ1: " + this.turnoJ1);
             Debug.Log("PartidaLocal: " + this.datos.PartidaLocal);
+            Debug.Log("Servidor: " + this.comunicaciones.Servidor);
             Debug.Log("Hay Humano" + this.datos.HayHumano);
             Debug.Log("Hay PC" + this.datos.HayPC);
 
@@ -263,7 +265,7 @@ namespace Juego
 
 
                 
-                tiempoJugada = Time.time;//////////////
+                this.tiempoJugada = Time.time; // guardo tiempo de la ultima jugada
                 this.procesoValidacionJuego = null;
             } // fin del if
 
@@ -271,29 +273,44 @@ namespace Juego
             // si se preoceso una jugada de la IA y el proceso termino
             if(this.procesoDeIA != null && !this.procesoDeIA.IsAlive)
             {
-                Debug.Log("Finalizo proceso de la IA");
+   //             Debug.Log("Finalizo proceso de la IA");
                 this.procesoDeIA = null;
             } // fin del if
 
 
             // si el turno es de la PC y no se esta procesando aún un click, un movimiento o una validacion
-            // y no se ha terminado el juego y han pasado 5 segundos desde la ultima jugada
+            // y no se ha terminado el juego y ha pasado 1 segundos desde la ultima jugada
             if (((this.turnoJ1 && this.J1 == TipoJugador.PC) || (!this.turnoJ1 && this.J2 == TipoJugador.PC)) &&
                 this.procesoClick == null && this.procesoMovimiento == null && procesoValidacionJuego == null && 
-                this.procesoDeIA == null && !this.juegoTerminado && Time.time - tiempoJugada > 1)
+                this.procesoDeIA == null && !this.juegoTerminado && Time.time - this.tiempoJugada > 1)
             {
-                Debug.Log("Es el turno de la IA");
+    //            Debug.Log("Es el turno de la IA");
                 // proceso para realizar la jugada de la IA
                 this.procesoDeIA = new Thread(o =>
                {
-                   Debug.Log("antes de llamar a JugadaIA");
+    //               Debug.Log("antes de llamar a JugadaIA");
                    this.JugadaIA();
                });
 
                 
-                Debug.Log("Inicio proceso de la IA");
+   //             Debug.Log("Inicio proceso de la IA");
                 this.procesoDeIA.Start(); // inicio el proceso de la IA
             } // fin del if
+
+
+            // si el turno es del usuario de internet y no se esta procesando aún un click, un movimiento o una validacion
+            // y no se ha terminado el juego y ha pasado 1 segundos desde la ultima jugada
+            if (((this.turnoJ1 && this.J1 == TipoJugador.INTERNET) || (!this.turnoJ1 && this.J2 == TipoJugador.INTERNET)) &&
+                this.procesoClick == null && this.procesoMovimiento == null && procesoValidacionJuego == null &&
+                this.procesoDeIA == null && !this.juegoTerminado && Time.time - tiempoJugada > 1)
+            {
+                // si ya se recibio una jugada
+                if( this.comunicaciones.jugadaRecibida)
+                {
+                    this.comunicaciones.jugadaRecibida = false; // ya recibi la jugada
+                    this.RealizarMovimiento(this.comunicaciones.jugada.tipo, this.comunicaciones.jugada.nodos); // realizo la jugada 
+                } // fin del if 
+            } // fin del if 
         } // fin de Update
 
 
@@ -549,7 +566,7 @@ namespace Juego
                 else if((this.fichaSelecionada.x != -1 && this.fichaSelecionada.y != -1) && 
                     ( ( this.adyacentes.IndexOf(coorSelect) != -1 ) || (this.coAdyacentes.IndexOf(coorSelect) != -1)))
                 {
-                    Debug.Log("Hago jugada");
+   //                 Debug.Log("Hago jugada");
                     int[] movimientos = { this.casillas[this.fichaSelecionada.x][this.fichaSelecionada.y].Posicion,
                                           this.casillas[coorSelect.x][coorSelect.y].Posicion};
 
@@ -687,9 +704,9 @@ namespace Juego
 
 
             // proceso para realizar el movimiento
-            this.procesoMovimiento = new Thread(o => 
+            this.procesoMovimiento = new Thread(o =>
             {
-                BuscarAdyacentes( casilla, robadas, null); // busco adyacentes a robar
+                BuscarAdyacentes(casilla, robadas, null); // busco adyacentes a robar
                 this.FiltrarAdyacentes(robadas, (this.turnoJ1 ? TipoFicha.PERLA : TipoFicha.RUBI)); // filtro fichas contrarias
                 this.DecrementarFicha(false, robadas.Count); // decremento la ficha del contrario
                 this.AumentarFicha(true, robadas.Count); // aumento la ficha del turno actual
@@ -697,6 +714,16 @@ namespace Juego
                 // cambio las fichas robadas por la ficha de turno que las robo
                 foreach (var robada in robadas)
                     this.casillas[robada.x][robada.y].Tipo = (this.turnoJ1 ? TipoFicha.RUBI : TipoFicha.PERLA);
+
+
+
+                ///////////////////////////////////////////////////
+                // si la partida es online y no es el turno del jugador de internet, entonces le envio la jugada hecha
+                if (!this.datos.PartidaLocal &&
+                    ((this.turnoJ1 && this.J1 != TipoJugador.INTERNET) || (!this.turnoJ1 && this.J2 != TipoJugador.INTERNET)))
+                {
+                    this.comunicaciones.enviarJugada(tipo, movimientos); // le envio la jugada
+                } // fin del if 
             }); // fin del proceso
 
 
